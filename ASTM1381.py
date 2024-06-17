@@ -119,10 +119,10 @@ def CheckSum( data ):
 		Output = '0' + Output
 	return Output	
 
-# def split_string(input_string):
-#     return [input_string[i:i + MAX_FRAME_CHAR] for i in range(0, len(input_string), MAX_FRAME_CHAR)]
-
-
+def split_content(input_string):
+    # Split the string into portions of MAX_CHAR length
+    result = [input_string[i:i + Config_FrameSize] for i in range(0, len(input_string), Config_FrameSize)]
+    return result
 class Frame:
 	""" 
 	An ASTM frame, which may or may not represent a single line.
@@ -178,7 +178,7 @@ class Frame:
 			output +=  str( Counter )
 		output += self.Value 
 		if self.IsFinalFrame == 1:			# Final Frame
-			output +=  ETX
+			output += CR + ETX
 		else:
 			output += ETB				# Intermediate Frame
 			
@@ -208,7 +208,13 @@ class Message:
 		self.LineBuffer = []
 		self.Frames = []
 	def AddLine( self, content ):
-		self.LineBuffer.append( content)
+		if(len(content) > Config_FrameSize):
+			split_result = split_content(content)
+			for element in split_result[:-1]:
+				self.AddIntermediateFrame(element)
+			self.AddFinalFrame(split_result[-1])
+		else:
+			self.AddFinalFrame( content )
 	def AddIntermediateFrame( self, content ):
 		output = Frame( content, 0 )
 		self.Frames.append( output )
@@ -218,24 +224,14 @@ class Message:
 		self.Frames.append( output )
 		return output
 	def Output( self ):
-		self.Frames = []
-		TotalMessage = ''.join( self.LineBuffer )
-		Buffer = ''
-		for thisChar in TotalMessage:
-			if len( Buffer ) < Config_FrameSize:
-				Buffer += thisChar
-			else:
-				self.Frames.append( Frame( Buffer , 0 ) )
-				Buffer = ''
-		if len(Buffer) > 0:
-			self.Frames.append( Frame( Buffer, 1 ) )
 		output = []
 		Counter = 1
-		#print self.Frames
+		print(self.Frames)
 		for thisFrame in self.Frames:
 			output.append(thisFrame.Output( Counter ))
 			Counter = Counter + 1
-			
+			if Counter > 7:
+				Counter = 0
 		return output
 	def Log( self ):
 		return ReformatForLog( self.Output() )
